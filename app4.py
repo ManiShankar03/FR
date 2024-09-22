@@ -11,6 +11,46 @@ balance_data = pd.read_csv('balance.csv')
 # Merge datasets on common columns
 merged_data = pd.merge(income_data, balance_data, on=['symbol', 'fiscalDateEnding'])
 
+# Company sector mapping and ticker to name mapping
+company_sectors = {
+    'AAPL': 'Technology',
+    'MSFT': 'Technology',
+    'GOOGL': 'Technology',
+    'META': 'Technology',
+    'VZ': 'Communication Services',
+    'AMZN': 'Consumer Discretionary',
+    'HD': 'Consumer Discretionary',
+    'JPM': 'Financials',
+    'V': 'Financials',
+    'JNJ': 'Healthcare',
+    'PFE': 'Healthcare',
+    'WMT': 'Consumer Staples',
+    'PG': 'Consumer Staples',
+    'GE': 'Industrials',
+    'XOM': 'Energy'
+}
+
+company_names = {
+    'AAPL': 'Apple Inc.',
+    'MSFT': 'Microsoft Corporation',
+    'GOOGL': 'Alphabet Inc.',
+    'META': 'Meta Platforms Inc.',
+    'VZ': 'Verizon Communications Inc.',
+    'AMZN': 'Amazon.com Inc.',
+    'HD': 'The Home Depot Inc.',
+    'JPM': 'JPMorgan Chase & Co.',
+    'V': 'Visa Inc.',
+    'JNJ': 'Johnson & Johnson',
+    'PFE': 'Pfizer Inc.',
+    'WMT': 'Walmart Inc.',
+    'PG': 'Procter & Gamble Co.',
+    'GE': 'General Electric Company',
+    'XOM': 'Exxon Mobil Corporation'
+}
+
+# Reverse lookup from name to ticker
+name_to_symbol = {v: k for k, v in company_names.items()}
+
 # Function to preprocess data (without scaling)
 def preprocess_data(company_data, look_back=4):
     company_data = company_data.sort_values('fiscalDateEnding')
@@ -100,28 +140,9 @@ sector_thresholds = {
     # Add other sectors...
 }
 
-# Company sector mapping
-company_sectors = {
-    'Apple Inc.': 'Technology',
-    'Microsoft Corporation': 'Technology',
-    'Alphabet Inc.': 'Technology',
-    'Meta Platforms Inc.': 'Technology',
-    'Verizon Communications Inc.': 'Communication Services',
-    'Amazon.com Inc.': 'Consumer Discretionary',
-    'The Home Depot Inc.': 'Consumer Discretionary',
-    'JPMorgan Chase & Co.': 'Financials',
-    'Visa Inc.': 'Financials',
-    'Johnson & Johnson': 'Healthcare',
-    'Pfizer Inc.': 'Healthcare',
-    'Walmart Inc.': 'Consumer Staples',
-    'Procter & Gamble Co.': 'Consumer Staples',
-    'General Electric Company': 'Industrials',
-    'Exxon Mobil Corporation': 'Energy'
-}
-
-# Function to get recommendation based on financial ratios with sector-specific thresholds
-def get_investment_recommendation(ratios, company):
-    sector = company_sectors.get(company, 'Other')
+# Function to get investment recommendation based on financial ratios
+def get_investment_recommendation(ratios, company_symbol):
+    sector = company_sectors.get(company_symbol, 'Technology')
     thresholds = sector_thresholds.get(sector, sector_thresholds['Technology'])
     
     recommendations = {}
@@ -178,16 +199,13 @@ def get_overall_recommendation(recommendations):
 # Streamlit app
 st.title("Financial Ratios and Investment Recommendation")
 
-company_symbols = merged_data['symbol'].unique()
-company_names = [company for company in company_sectors.keys()]
-
-selected_companies = st.multiselect("Select companies:", company_names)
+selected_companies = st.multiselect("Select companies:", list(company_names.values()))
 
 if selected_companies:
     option = st.radio("Select an option:", ["Each Financial Ratio Separately", "All Financial Ratios and Insights"])
     
     for company in selected_companies:
-        company_symbol = list(company_sectors.keys())[list(company_sectors.values()).index(company)]
+        company_symbol = name_to_symbol[company]
         company_data = merged_data[merged_data['symbol'] == company_symbol]
         
         st.write(f"Loading data and models for {company}...")
@@ -206,19 +224,22 @@ if selected_companies:
                 st.warning(f"Model not found for {key} of {company}.")
                 forecasts[key] = np.array([np.nan, np.nan])
         
-        st.write(f"Forecasts for {company}:")
-        st.write(forecasts)
+        st.write(f"Forecast for {company}:")
+        forecast_df = pd.DataFrame(forecasts, index=['Quarter 1', 'Quarter 2'])
+        st.dataframe(forecast_df)
 
-        # Calculate financial ratios based on forecasts
         ratios = calculate_financial_ratios(forecasts)
+        st.write(f"Financial Ratios for {company}:")
+        ratios_df = pd.DataFrame(ratios)
+        st.dataframe(ratios_df)
 
-        if option == "Each Financial Ratio Separately":
-            st.write(f"Financial ratios for {company}:")
-            st.write(ratios)
-        else:
-            recommendations = get_investment_recommendation(ratios, company)
+        if option == "All Financial Ratios and Insights":
+            recommendations = get_investment_recommendation(ratios, company_symbol)
             st.write(f"Recommendations for {company}:")
-            st.write(recommendations)
-
+            recommendations_df = pd.DataFrame(recommendations)
+            st.dataframe(recommendations_df)
+            
             overall_recommendation = get_overall_recommendation(recommendations)
-            st.write(f"Overall recommendation for {company}: **{overall_recommendation}**")
+            st.write(f"Overall Recommendation for {company}: {overall_recommendation}")
+        else:
+            st.write(f"Detailed ratios and insights can be seen in the 'All Financial Ratios and Insights' option.")
