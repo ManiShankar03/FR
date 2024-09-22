@@ -195,7 +195,7 @@ sector_thresholds = {
         'return_on_equity': 0.1,
         'current_ratio': (1.5, 3),
         'debt_to_equity_ratio': 0.6,
-        'asset_turnover_ratio': 0.4
+        'asset_turnover_ratio': 0.5
     }
 }
 
@@ -269,11 +269,12 @@ if option:
     ratios_df = pd.DataFrame(ratios)
     st.dataframe(ratios_df)
     
-    if st.checkbox("Show Recommendations"):
+    if st.checkbox("Show Individual Financial Ratio Recommendations"):
         recommendations = get_investment_recommendation(ratios, company_symbol)
-        st.write(f"Recommendations for {option}:")
+        st.write(f"Individual Recommendations for {option}:")
         recommendations_df = pd.DataFrame(recommendations, index=[0])
         st.dataframe(recommendations_df)
         
+    if st.checkbox("Show Overall Financial Ratio Recommendation"):
         overall_recommendation = get_overall_recommendation(recommendations)
         st.write(f"Overall Recommendation for {option}: {overall_recommendation}")
