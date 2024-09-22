@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
-from keras.models import load_model
-from sklearn.preprocessing import MinMaxScaler
+import joblib
 
 # Load data
 income_data = pd.read_csv('income.csv')
@@ -12,29 +11,26 @@ balance_data = pd.read_csv('balance.csv')
 # Merge datasets on common columns
 merged_data = pd.merge(income_data, balance_data, on=['symbol', 'fiscalDateEnding'])
 
-# Company name mapping
+# Company symbol-to-name mapping
 company_names = {
     'AAPL': 'Apple Inc.',
-    'MSFT': 'Microsoft Corporation',
+    'MSFT': 'Microsoft Corp.',
     'GOOGL': 'Alphabet Inc.',
     'META': 'Meta Platforms, Inc.',
     'VZ': 'Verizon Communications Inc.',
     'AMZN': 'Amazon.com, Inc.',
-    'HD': 'The Home Depot, Inc.',
+    'HD': 'Home Depot, Inc.',
     'JPM': 'JPMorgan Chase & Co.',
     'V': 'Visa Inc.',
     'JNJ': 'Johnson & Johnson',
     'PFE': 'Pfizer Inc.',
     'WMT': 'Walmart Inc.',
-    'PG': 'The Procter & Gamble Company',
-    'GE': 'General Electric Company',
-    'XOM': 'Exxon Mobil Corporation'
+    'PG': 'Procter & Gamble Co.',
+    'GE': 'General Electric Co.',
+    'XOM': 'Exxon Mobil Corp.'
 }
 
-# Reverse mapping from company names to symbols
-company_names_reverse = {v: k for k, v in company_names.items()}
-
-# Function to preprocess data
+# Function to preprocess data (without scaling)
 def preprocess_data(company_data, look_back=4):
     company_data = company_data.sort_values('fiscalDateEnding')
     
@@ -50,10 +46,6 @@ def preprocess_data(company_data, look_back=4):
         'total_liabilities': company_data['totalLiabilities'].values.reshape(-1, 1)
     }
     
-    scalers = {key: MinMaxScaler(feature_range=(0, 1)) for key in features.keys()}
-    
-    scaled_data = {key: scalers[key].fit_transform(values) for key, values in features.items()}
-    
     def create_dataset(dataset, look_back=1):
         X, Y = [], []
         for i in range(len(dataset) - look_back):
@@ -62,22 +54,21 @@ def preprocess_data(company_data, look_back=4):
             Y.append(dataset[i + look_back, 0])
         return np.array(X), np.array(Y)
     
-    datasets = {key: create_dataset(values, look_back) for key, values in scaled_data.items()}
+    datasets = {key: create_dataset(values, look_back) for key, values in features.items()}
     
     X_datasets = {key: np.reshape(X, (X.shape[0], X.shape[1], 1)) for key, (X, Y) in datasets.items()}
     Y_datasets = {key: Y for key, (X, Y) in datasets.items()}
     
-    return X_datasets, Y_datasets, scaled_data, scalers
+    return X_datasets, Y_datasets
 
 # Function to forecast next two quarters
-def forecast_next_two_quarters(model, last_data, scaler, look_back=4):
+def forecast_next_two_quarters(model, last_data, look_back=4):
     forecast_input = last_data.reshape(1, look_back, 1)
     forecasts = []
     for _ in range(2):
         next_forecast = model.predict(forecast_input)
-        next_forecast = scaler.inverse_transform(next_forecast.reshape(-1, 1))
         forecasts.append(next_forecast[0, 0])
-        next_forecast_scaled = scaler.transform(next_forecast)
+        next_forecast_scaled = next_forecast
         forecast_input = np.concatenate((forecast_input[:, 1:, :], next_forecast_scaled.reshape(1, 1, 1)), axis=1)
     return np.array(forecasts)
 
@@ -103,181 +94,57 @@ def calculate_financial_ratios(forecasts):
         'asset_turnover_ratio': asset_turnover_ratio
     }
 
-# Sector-specific thresholds
-sector_thresholds = {
-    'Technology': {
-        'gross_margin': 0.4,
-        'operating_margin': 0.15,
-        'net_income_margin': 0.1,
-        'return_on_assets': 0.05,
-        'return_on_equity': 0.2,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.5,
-        'asset_turnover_ratio': 0.6
-    },
-    'Consumer Discretionary': {
-        'gross_margin': 0.3,
-        'operating_margin': 0.2,
-        'net_income_margin': 0.15,
-        'return_on_assets': 0.1,
-        'return_on_equity': 0.15,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.7,
-        'asset_turnover_ratio': 0.5
-    },
-    'Financials': {
-        'gross_margin': 0.5,
-        'operating_margin': 0.3,
-        'net_income_margin': 0.25,
-        'return_on_assets': 0.02,
-        'return_on_equity': 0.1,
-        'current_ratio': (1.0, 2.5),
-        'debt_to_equity_ratio': 0.8,
-        'asset_turnover_ratio': 0.1
-    },
-    'Healthcare': {
-        'gross_margin': 0.3,
-        'operating_margin': 0.15,
-        'net_income_margin': 0.1,
-        'return_on_assets': 0.05,
-        'return_on_equity': 0.1,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.6,
-        'asset_turnover_ratio': 0.4
-    },
-    'Energy': {
-        'gross_margin': 0.25,
-        'operating_margin': 0.1,
-        'net_income_margin': 0.05,
-        'return_on_assets': 0.04,
-        'return_on_equity': 0.08,
-        'current_ratio': (1.0, 2.5),
-        'debt_to_equity_ratio': 0.9,
-        'asset_turnover_ratio': 0.3
-    }
-}
-
-# Company sector mapping
-company_sectors = {
-    'AAPL': 'Technology',
-    'MSFT': 'Technology',
-    'GOOGL': 'Technology',
-    'META': 'Technology',
-    'VZ': 'Communication Services',
-    'AMZN': 'Consumer Discretionary',
-    'HD': 'Consumer Discretionary',
-    'JPM': 'Financials',
-    'V': 'Financials',
-    'JNJ': 'Healthcare',
-    'PFE': 'Healthcare',
-    'WMT': 'Consumer Staples',
-    'PG': 'Consumer Staples',
-    'GE': 'Industrials',
-    'XOM': 'Energy'
-}
-
-# Function to get recommendation based on financial ratios with sector-specific thresholds
-def get_investment_recommendation(ratios, company):
-    sector = company_sectors.get(company, 'Other')
-    thresholds = sector_thresholds.get(sector, sector_thresholds['Technology'])
-    
-    recommendations = {}
-    for key, values in ratios.items():
-        recommendations[key] = []
-        for value in values:
-            if key in ['gross_margin', 'operating_margin', 'net_income_margin', 'return_on_assets', 'return_on_equity']:
-                if value > thresholds[key]:
-                    recommendations[key].append('Good')
-                else:
-                    recommendations[key].append('Bad')
-            elif key == 'current_ratio':
-                if thresholds[key][0] < value < thresholds[key][1]:
-                    recommendations[key].append('Good')
-                else:
-                    recommendations[key].append('Bad')
-            elif key == 'debt_to_equity_ratio':
-                if value < thresholds[key]:
-                    recommendations[key].append('Good')
-                else:
-                    recommendations[key].append('Bad')
-            elif key == 'asset_turnover_ratio':
-                if value > thresholds[key]:
-                    recommendations[key].append('Good')
-                else:
-                    recommendations[key].append('Bad')
-    
-    return recommendations
-
-# Function to get overall investment recommendation
-def get_overall_recommendation(recommendations):
-    good_count = sum([1 for key in recommendations.keys() for value in recommendations[key] if value == 'Good'])
-    total_count = sum([len(recommendations[key]) for key in recommendations.keys()])
-    
-    if good_count / total_count >= 0.7:
-        return "Strong Buy"
-    elif good_count / total_count >= 0.5:
-        return "Buy"
-    elif good_count / total_count >= 0.3:
-        return "Hold/Do not buy"
-    else:
-        return "Sell/Do not Buy"
-
 # Streamlit app
 st.title("Financial Ratios and Investment Recommendation")
 
-# Get company names instead of symbols
-company_symbols = merged_data['symbol'].unique()
-company_names_list = [company_names[symbol] for symbol in company_symbols if symbol in company_names]
-
+# Replace symbols with company names for dropdown
+company_names_list = [company_names[symbol] for symbol in merged_data['symbol'].unique()]
 selected_companies = st.multiselect("Select companies:", company_names_list)
 
-# Get the ticker symbols for the selected companies
-selected_symbols = [company_names_reverse[name] for name in selected_companies]
-
-if selected_symbols:
+if selected_companies:
     option = st.radio("Select an option:", ["Each Financial Ratio Separately", "All Financial Ratios and Insights"])
-    
-    for company in selected_symbols:
-        company_data = merged_data[merged_data['symbol'] == company]
-        X_datasets, Y_datasets, scaled_data, scalers = preprocess_data(company_data, look_back=4)
-        
+
+    for company_name in selected_companies:
+        company_symbol = [k for k, v in company_names.items() if v == company_name][0]
+        company_data = merged_data[merged_data['symbol'] == company_symbol]
+
+        st.write(f"Loading data and models for {company_name}...")
+        X_datasets, Y_datasets = preprocess_data(company_data, look_back=4)
+
         forecasts = {}
-        
-        for key in X_datasets.keys():
-            model_file = f'models1/{company}_{key}_model.h5'
-            if os.path.exists(model_file):
-                model = load_model(model_file)
-                forecast = forecast_next_two_quarters(model, scaled_data[key][-4:], scalers[key])
-                forecasts[key] = forecast
-        
-        if forecasts:
-            forecasted_ratios = calculate_financial_ratios({
-                'gross_profit': forecasts['gross_profit'],
-                'total_revenue': forecasts['total_revenue'],
-                'operating_income': forecasts['operating_income'],
-                'net_income': forecasts['net_income'],
-                'total_assets': forecasts['total_assets'],
-                'total_equity': forecasts['total_equity'],
-                'current_assets': forecasts['current_assets'],
-                'current_liabilities': forecasts['current_liabilities'],
-                'total_liabilities': forecasts['total_liabilities']
-            })
-            recommendations = get_investment_recommendation(forecasted_ratios, company)
+        for key in ['gross_profit', 'total_revenue', 'operating_income', 'net_income', 'total_assets', 'total_equity', 'current_assets', 'current_liabilities', 'total_liabilities']:
+            model_path = os.path.join('models1', f'{company_symbol}_{key}_lstm_model.joblib')
+
+            if os.path.exists(model_path):
+                model = joblib.load(model_path)
+                
+                last_data = X_datasets[key][-1]
+                forecasts[key] = forecast_next_two_quarters(model, last_data)
+            else:
+                st.warning(f"Model not found for {key} of {company_name}.")
+                forecasts[key] = np.array([np.nan, np.nan])
+
+        st.write(f"Forecast for {company_name}:")
+        forecast_df = pd.DataFrame(forecasts, index=['Quarter 1', 'Quarter 2'])
+        st.dataframe(forecast_df)
+
+        ratios = calculate_financial_ratios(forecasts)
+        st.write(f"Financial Ratios for {company_name}:")
+        ratios_df = pd.DataFrame(ratios)
+        st.dataframe(ratios_df)
+
+        if option == "Each Financial Ratio Separately":
+            selected_ratio = st.selectbox("Select a financial ratio:", ratios.keys())
+            if selected_ratio:
+                st.write(f"{selected_ratio} for {company_name}:")
+                st.dataframe(pd.DataFrame({selected_ratio: ratios[selected_ratio]}, index=['Quarter 1', 'Quarter 2']))
+
+        elif option == "All Financial Ratios and Insights":
+            # Display all ratios with recommendations
+            st.write(f"All Financial Ratios and Insights for {company_name}:")
+            recommendations = get_investment_recommendation(ratios, company_symbol)
+            recommendations_df = pd.DataFrame(recommendations)
+            st.dataframe(recommendations_df)
+
             overall_recommendation = get_overall_recommendation(recommendations)
-            
-            # Display company name in the header
-            st.header(f"Company: {company_names[company]}")
-            
-            if option == "Each Financial Ratio Separately":
-                selected_ratio = st.selectbox("Select Financial Ratio:", forecasted_ratios.keys())
-                values = forecasted_ratios[selected_ratio]
-                for i, value in enumerate(values):
-                    st.write(f"{selected_ratio} (Quarter {i+1}): {value:.2f} ({recommendations[selected_ratio][i]})")
-            
-            elif option == "All Financial Ratios and Insights":
-                st.write("Financial Ratios:")
-                st.write(pd.DataFrame(forecasted_ratios))
-                st.write("Investment Recommendations:")
-                st.write(pd.DataFrame(recommendations))
-                st.write("Overall Investment Recommendation:")
-                st.write(overall_recommendation)
+            st.write(f"Overall Recommendation for {company_name}: {overall_recommendation}")
