@@ -253,7 +253,7 @@ def get_overall_recommendation(recommendations):
                 weighted_score += weight
     
     score_ratio = weighted_score / (total_weight * len(recommendations.values()))
-    return 'Invest' if score_ratio > 0.5 else 'Do not Invest'
+    return 'Invest' if score_ratio > 0.2 else 'Do not Invest'
 
 # Streamlit app
 st.title("Financial Ratios and Investment Recommendation")
