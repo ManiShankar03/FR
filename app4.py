@@ -115,47 +115,122 @@ def calculate_financial_ratios(forecasts):
         'asset_turnover_ratio': asset_turnover_ratio
     }
 
-# Sector-specific thresholds
+# Function to get investment recommendation based on financial ratios
+def get_investment_recommendation(ratios, company_symbol):
+    sector = company_sectors.get(company_symbol, 'Technology')
+    thresholds = sector_thresholds.get(sector, sector_thresholds['Technology'])
+    
+    recommendations = {}
+    for key, values in ratios.items():
+        recommendations[key] = []
+        for value in values:
+            if key in ['gross_margin', 'operating_margin', 'net_income_margin', 'return_on_assets', 'return_on_equity']:
+                if value > thresholds[key]:
+                    recommendations[key].append('Good')
+                else:
+                    recommendations[key].append('Bad')
+            elif key == 'current_ratio':
+                if thresholds[key][0] < value < thresholds[key][1]:
+                    recommendations[key].append('Good')
+                else:
+                    recommendations[key].append('Bad')
+            elif key == 'debt_to_equity_ratio':
+                if value < thresholds[key]:
+                    recommendations[key].append('Good')
+                else:
+                    recommendations[key].append('Bad')
+            elif key == 'asset_turnover_ratio':
+                if value > thresholds[key]:
+                    recommendations[key].append('Good')
+                else:
+                    recommendations[key].append('Bad')
+    return recommendations
+
+# Streamlit app
+st.title("Financial Ratios and Investment Recommendation")
+
+selected_companies = st.multiselect("Select companies:", list(company_names.values()))
+
+if selected_companies:
+    option = st.radio("Select an option:", ["Each Financial Ratio Separately", "All Financial Ratios and Insights"])
+    
+    for company in selected_companies:
+        company_symbol = name_to_symbol[company]
+        company_data = merged_data[merged_data['symbol'] == company_symbol]
+        
+        st.write(f"Loading data and models for {company}...")
+        X_datasets, Y_datasets = preprocess_data(company_data, look_back=4)
+
+        forecasts = {}
+        for key in ['gross_profit', 'total_revenue', 'operating_income', 'net_income', 'total_assets', 'total_equity', 'current_assets', 'current_liabilities', 'total_liabilities']:
+            model_path = os.path.join('models1', f'{company_symbol}_{key}_lstm_model.joblib')
+            
+            if os.path.exists(model_path):
+                model = joblib.load(model_path)
+                
+                last_data = X_datasets[key][-1]
+                forecasts[key] = forecast_next_two_quarters(model, last_data)
+            else:
+                st.warning(f"Model not found for {key} of {company}.")
+                forecasts[key] = np.array([np.nan, np.nan])
+        
+        st.write(f"Forecast for {company}:")
+        forecast_df = pd.DataFrame(forecasts, index=['Quarter 1', 'Quarter 2'])
+        st.dataframe(forecast_df)
+
+        ratios = calculate_financial_ratios(forecasts)
+        st.write(f"Financial Ratios for {company}:")
+        ratios_df = pd.DataFrame(ratios)
+        st.dataframe(ratios_df)
+
+        if option == "Each Financial Ratio Separately":
+            # Let user select a ratio and display forecasted values for that ratio
+            selected_ratio = st.selectbox("Select a financial ratio:", list(ratios.keys()))
+            if selected_ratio:
+                st.write(f"Forecasted values for {selected_ratio} of {company}:")
+                selected_ratio_values = pd.DataFrame({
+                    'Quarter': ['Quarter 1', 'Quarter 2'],
+                    selected_ratio: ratios[selected_ratio]
+                })
+                st.dataframe(selected_ratio_values)
+        
+        elif option == "All Financial Ratios and Insights":
+            recommendations = get_investment_recommendation(ratios, company_symbol)
+            st.write(f"Recommendations for {company}:")
+            recommendations_df = pd.DataFrame(recommendations)
+            st.dataframe(recommendations_df)
+
+# Define sector-specific thresholds
 sector_thresholds = {
     'Technology': {
         'gross_margin': 0.4,
-        'operating_margin': 0.15,
-        'net_income_margin': 0.1,
-        'return_on_assets': 0.05,
-        'return_on_equity': 0.2,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.5,
-        'asset_turnover_ratio': 0.6
-    },
-    'Consumer Discretionary': {
-        'gross_margin': 0.3,
         'operating_margin': 0.2,
         'net_income_margin': 0.15,
         'return_on_assets': 0.1,
         'return_on_equity': 0.15,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.7,
+        'current_ratio': [1.5, 3],
+        'debt_to_equity_ratio': 0.5,
         'asset_turnover_ratio': 0.5
     },
-    'Financials': {
-        'gross_margin': 0.2,
-        'operating_margin': 0.25,
-        'net_income_margin': 0.2,
-        'return_on_assets': 0.01,
-        'return_on_equity': 0.1,
-        'current_ratio': (1, 2.5),
-        'debt_to_equity_ratio': 0.8,
-        'asset_turnover_ratio': 0.15
+    'Consumer Discretionary': {
+        'gross_margin': 0.35,
+        'operating_margin': 0.18,
+        'net_income_margin': 0.12,
+        'return_on_assets': 0.08,
+        'return_on_equity': 0.12,
+        'current_ratio': [1.2, 2.5],
+        'debt_to_equity_ratio': 0.6,
+        'asset_turnover_ratio': 0.7
     },
     'Healthcare': {
         'gross_margin': 0.5,
-        'operating_margin': 0.2,
-        'net_income_margin': 0.1,
-        'return_on_assets': 0.1,
-        'return_on_equity': 0.15,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.5,
-        'asset_turnover_ratio': 0.6
+        'operating_margin': 0.22,
+        'net_income_margin': 0.18,
+        'return_on_assets': 0.12,
+        'return_on_equity': 0.18,
+        'current_ratio': [1.8, 3.5],
+        'debt_to_equity_ratio': 0.4,
+        'asset_turnover_ratio': 0.4
     },
     'Consumer Staples': {
         'gross_margin': 0.35,
@@ -197,108 +272,5 @@ sector_thresholds = {
         'debt_to_equity_ratio': 0.6,
         'asset_turnover_ratio': 0.5
     }
+
 }
-
-# Function to get investment recommendation based on financial ratios
-def get_investment_recommendation(ratios, company_symbol):
-    sector = company_sectors.get(company_symbol, 'Technology')
-    thresholds = sector_thresholds.get(sector, sector_thresholds['Technology'])
-    
-    recommendations = {}
-    for key, values in ratios.items():
-        recommendations[key] = []
-        for value in values:
-            if key in ['gross_margin', 'operating_margin', 'net_income_margin', 'return_on_assets', 'return_on_equity']:
-                if value > thresholds[key]:
-                    recommendations[key].append('Good')
-                else:
-                    recommendations[key].append('Bad')
-            elif key == 'current_ratio':
-                if thresholds[key][0] < value < thresholds[key][1]:
-                    recommendations[key].append('Good')
-                else:
-                    recommendations[key].append('Bad')
-            elif key == 'debt_to_equity_ratio':
-                if value < thresholds[key]:
-                    recommendations[key].append('Good')
-                else:
-                    recommendations[key].append('Bad')
-            elif key == 'asset_turnover_ratio':
-                if value > thresholds[key]:
-                    recommendations[key].append('Good')
-                else:
-                    recommendations[key].append('Bad')
-    return recommendations
-
-# Function to get overall recommendation with weights
-def get_overall_recommendation(recommendations):
-    weights = {
-        'gross_margin': 1.0,
-        'operating_margin': 1.0,
-        'net_income_margin': 1.0,
-        'return_on_assets': 1.0,
-        'return_on_equity': 1.0,
-        'current_ratio': 1,
-        'debt_to_equity_ratio': 1,
-        'asset_turnover_ratio': 1
-    }
-    
-    weighted_score = 0
-    total_weight = sum(weights.values())
-    
-    for key, values in recommendations.items():
-        weight = weights.get(key, 1.0)
-        for value in values:
-            if value == 'Good':
-                weighted_score += weight
-    
-    score_ratio = weighted_score / (total_weight * len(recommendations.values()))
-    return 'Invest' if score_ratio > 0.1 else 'Do not Invest'
-
-# Streamlit app
-st.title("Financial Ratios and Investment Recommendation")
-
-selected_companies = st.multiselect("Select companies:", list(company_names.values()))
-
-if selected_companies:
-    option = st.radio("Select an option:", ["Each Financial Ratio Separately", "All Financial Ratios and Insights"])
-    
-    for company in selected_companies:
-        company_symbol = name_to_symbol[company]
-        company_data = merged_data[merged_data['symbol'] == company_symbol]
-        
-        st.write(f"Loading data and models for {company}...")
-        X_datasets, Y_datasets = preprocess_data(company_data, look_back=4)
-
-        forecasts = {}
-        for key in ['gross_profit', 'total_revenue', 'operating_income', 'net_income', 'total_assets', 'total_equity', 'current_assets', 'current_liabilities', 'total_liabilities']:
-            model_path = os.path.join('models1', f'{company_symbol}_{key}_lstm_model.joblib')
-            
-            if os.path.exists(model_path):
-                model = joblib.load(model_path)
-                
-                last_data = X_datasets[key][-1]
-                forecasts[key] = forecast_next_two_quarters(model, last_data)
-            else:
-                st.warning(f"Model not found for {key} of {company}.")
-                forecasts[key] = np.array([np.nan, np.nan])
-        
-        st.write(f"Forecast for {company}:")
-        forecast_df = pd.DataFrame(forecasts, index=['Quarter 1', 'Quarter 2'])
-        st.dataframe(forecast_df)
-
-        ratios = calculate_financial_ratios(forecasts)
-        st.write(f"Financial Ratios for {company}:")
-        ratios_df = pd.DataFrame(ratios)
-        st.dataframe(ratios_df)
-
-        if option == "All Financial Ratios and Insights":
-            recommendations = get_investment_recommendation(ratios, company_symbol)
-            st.write(f"Recommendations for {company}:")
-            recommendations_df = pd.DataFrame(recommendations)
-            st.dataframe(recommendations_df)
-            
-            overall_recommendation = get_overall_recommendation(recommendations)
-            st.write(f"Overall Recommendation for {company}: {overall_recommendation}")
-        else:
-            st.write(f"Detailed ratios and insights can be seen in the 'All Financial Ratios and Insights' option.")
