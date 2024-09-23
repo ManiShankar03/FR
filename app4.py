@@ -231,46 +231,5 @@ sector_thresholds = {
         'current_ratio': [1.8, 3.5],
         'debt_to_equity_ratio': 0.4,
         'asset_turnover_ratio': 0.4
-    },
-    'Consumer Staples': {
-        'gross_margin': 0.35,
-        'operating_margin': 0.15,
-        'net_income_margin': 0.1,
-        'return_on_assets': 0.05,
-        'return_on_equity': 0.15,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.6,
-        'asset_turnover_ratio': 0.5
-    },
-    'Industrials': {
-        'gross_margin': 0.3,
-        'operating_margin': 0.1,
-        'net_income_margin': 0.07,
-        'return_on_assets': 0.05,
-        'return_on_equity': 0.15,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.7,
-        'asset_turnover_ratio': 0.8
-    },
-    'Energy': {
-        'gross_margin': 0.2,
-        'operating_margin': 0.15,
-        'net_income_margin': 0.08,
-        'return_on_assets': 0.04,
-        'return_on_equity': 0.1,
-        'current_ratio': (1.2, 2.5),
-        'debt_to_equity_ratio': 0.5,
-        'asset_turnover_ratio': 0.5
-    },
-    'Communication Services': {
-        'gross_margin': 0.4,
-        'operating_margin': 0.2,
-        'net_income_margin': 0.1,
-        'return_on_assets': 0.05,
-        'return_on_equity': 0.1,
-        'current_ratio': (1.5, 3),
-        'debt_to_equity_ratio': 0.6,
-        'asset_turnover_ratio': 0.5
     }
-
 }
