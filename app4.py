@@ -47,7 +47,39 @@ company_names = {
     'GE': 'General Electric Company',
     'XOM': 'Exxon Mobil Corporation'
 }
-
+# Define sector-specific thresholds
+sector_thresholds = {
+    'Technology': {
+        'gross_margin': 0.4,
+        'operating_margin': 0.2,
+        'net_income_margin': 0.15,
+        'return_on_assets': 0.1,
+        'return_on_equity': 0.15,
+        'current_ratio': [1.5, 3],
+        'debt_to_equity_ratio': 0.5,
+        'asset_turnover_ratio': 0.5
+    },
+    'Consumer Discretionary': {
+        'gross_margin': 0.35,
+        'operating_margin': 0.18,
+        'net_income_margin': 0.12,
+        'return_on_assets': 0.08,
+        'return_on_equity': 0.12,
+        'current_ratio': [1.2, 2.5],
+        'debt_to_equity_ratio': 0.6,
+        'asset_turnover_ratio': 0.7
+    },
+    'Healthcare': {
+        'gross_margin': 0.5,
+        'operating_margin': 0.22,
+        'net_income_margin': 0.18,
+        'return_on_assets': 0.12,
+        'return_on_equity': 0.18,
+        'current_ratio': [1.8, 3.5],
+        'debt_to_equity_ratio': 0.4,
+        'asset_turnover_ratio': 0.4
+    }
+}
 # Reverse lookup from name to ticker
 name_to_symbol = {v: k for k, v in company_names.items()}
 
@@ -200,36 +232,3 @@ if selected_companies:
             recommendations_df = pd.DataFrame(recommendations)
             st.dataframe(recommendations_df)
 
-# Define sector-specific thresholds
-sector_thresholds = {
-    'Technology': {
-        'gross_margin': 0.4,
-        'operating_margin': 0.2,
-        'net_income_margin': 0.15,
-        'return_on_assets': 0.1,
-        'return_on_equity': 0.15,
-        'current_ratio': [1.5, 3],
-        'debt_to_equity_ratio': 0.5,
-        'asset_turnover_ratio': 0.5
-    },
-    'Consumer Discretionary': {
-        'gross_margin': 0.35,
-        'operating_margin': 0.18,
-        'net_income_margin': 0.12,
-        'return_on_assets': 0.08,
-        'return_on_equity': 0.12,
-        'current_ratio': [1.2, 2.5],
-        'debt_to_equity_ratio': 0.6,
-        'asset_turnover_ratio': 0.7
-    },
-    'Healthcare': {
-        'gross_margin': 0.5,
-        'operating_margin': 0.22,
-        'net_income_margin': 0.18,
-        'return_on_assets': 0.12,
-        'return_on_equity': 0.18,
-        'current_ratio': [1.8, 3.5],
-        'debt_to_equity_ratio': 0.4,
-        'asset_turnover_ratio': 0.4
-    }
-}
